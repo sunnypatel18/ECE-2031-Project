@@ -1,0 +1,151 @@
+LIBRARY IEEE;
+USE  IEEE.STD_LOGIC_1164.all;
+USE  IEEE.STD_LOGIC_ARITH.all;
+
+ENTITY ONESHOT_I2C IS
+	PORT (
+		I2C_CLK, RESETN : IN  STD_LOGIC; 
+		SCL, SDA    : INOUT STD_LOGIC -- must be INOUT.
+	) ;
+END ONESHOT_I2C;
+
+ARCHITECTURE a OF ONESHOT_I2C IS
+	 
+	SIGNAL	SDA_INT		: STD_LOGIC;	-- internal signal for SDA.  This does not need to be tri-stated
+	SIGNAL	SCL_INT		: STD_LOGIC;	-- internal signal for SDA.  This does not need to be tri-stated
+	TYPE I2CSTATE_TYPE IS ( IDLE, SEND_BITS, SEND_STOP, SEND_START, GET_ACK, PRE_STOP);
+	SIGNAL I2C_STATE : I2CSTATE_TYPE;	-- state variable
+	SIGNAL COUNT : INTEGER RANGE 0 TO 24;	-- used to keep track of which bit is being sent
+
+	TYPE	REGISTER_ARRAY	IS ARRAY(8 DOWNTO 0) OF STD_LOGIC_VECTOR(15 DOWNTO 0);
+	SIGNAL	COMMANDS : REGISTER_ARRAY;
+	SIGNAL	CMD_NUM	: INTEGER RANGE 0 TO 9;
+	SIGNAL	TX_BUFF		: STD_LOGIC_VECTOR(23 DOWNTO 0) := X"340000";	-- stores the packet being transmitted
+
+BEGIN
+ 	 	
+	-- the following statements handle the open-collector emulation for SDA and SCL
+	WITH SCL_INT SELECT SCL <= 
+		'0' WHEN '0',	-- only allowed to pull the line low
+		'Z' WHEN OTHERS;	-- otherwise, it must be hi-Z
+	WITH SDA_INT SELECT SDA  <= 
+		'0' WHEN '0',
+		'Z' WHEN OTHERS;
+  
+	COMMANDS(0) <= 
+		X"1E00";	-- full reset
+	COMMANDS(1) <= 
+		X"0E53";	-- DSP master, 16-bit, data on 2nd clock
+	COMMANDS(2) <= 
+		X"1001";	-- USB mode, 48kHz sampling
+	COMMANDS(3) <= 
+		X"05F9";	-- 0dB headphone volume
+	COMMANDS(4) <= 
+		X"1201";	-- activate digital interface
+	COMMANDS(5) <= 
+		X"0812";	-- DAC-to-output, disable inputs
+	COMMANDS(6) <= 
+		X"0180";	-- mute line-in
+	COMMANDS(7) <= 
+		X"0C67";	-- power up DAC and output
+	COMMANDS(8) <= 
+		X"0A00";	-- disable DAC soft mute
+
+
+	--  The following process is a state machine used to handle the I2C protocol.
+	--  To achieve proper timing for SDA and SCL, they are controlled by alternating
+	-- edges of I2C_CLK; i.e. SDA is updated on the rising edges and SCL is updated
+	-- on the falling edges.  Do not confuse I2C_CLK with SCL: I2C_CLK is to control
+	-- the state machine only.  The state machine in turn controls SCL.
+	--  This allows the state machine to perform actions in the middle of each SCL state,
+	-- e.g. setting SDA while SCL is low, or reading SDA while SCL is high.
+	--  However because of this, I2C_CLK must be twice the desired I2C frequency
+	-- e.g. 200kHz I2C_CLK will result in an SCL frequency of 100kHz
+	PROCESS (I2C_CLK, RESETN)
+	BEGIN
+		IF ( RESETN = '0' ) THEN
+			SDA_INT <= '1';	-- SDA idle high
+			SCL_INT <= '1';	-- SCL idle high
+			I2C_STATE <= IDLE;
+			CMD_NUM <= 0;	-- ready for first command
+			TX_BUFF <= X"340000"; -- 0x34 is the I2C address of the codec
+		ELSE 
+			IF RISING_EDGE(I2C_CLK) THEN
+				-- state (and thus SDA) will change on rising clocks
+				CASE I2C_STATE  IS
+				
+					WHEN IDLE =>
+						SDA_INT <= '1';	-- ensure idle SDA
+						IF CMD_NUM <= 8 THEN
+							I2C_STATE <= SEND_START;	-- begin the I2C transfer
+							TX_BUFF <= X"34" & COMMANDS(CMD_NUM);							
+							CMD_NUM <= CMD_NUM+1;	-- ready for next command
+						END IF;
+
+					WHEN SEND_START =>
+						IF SCL_INT = '1' THEN -- SCL is ready for start bit.
+							SDA_INT <= '0';	-- start bit
+							I2C_STATE <= SEND_BITS;
+							COUNT <= 24;		-- initialize the counter
+						END IF;
+
+					WHEN SEND_BITS =>
+						IF SCL_INT = '0' THEN	-- only change SDA when SCL is low
+							IF (COUNT = 16) OR (COUNT = 8) OR (COUNT = 0) THEN -- need to check ack
+								SDA_INT <= '1';	-- release SDA for ack read
+								I2C_STATE <= GET_ACK; 
+							ELSE
+								SDA_INT <= TX_BUFF(COUNT-1);	-- output the current bit of the packet
+								COUNT <= COUNT-1;	-- move on to next bit
+							END IF;
+						END IF;
+						
+					-- this is a more complicated state, since following the ack, the
+					--- transmission can continue, or end from nack or from end of data.
+					WHEN GET_ACK =>
+						IF SCL_INT = '1' THEN	-- only sample when SCL is high.
+							-- note that we don't transition state here;
+							--- we only transition state when SCL is low
+							IF SDA = '1' THEN 
+								I2C_STATE <= PRE_STOP;	-- nack; stop transmission
+								SDA_INT <= '1';	-- should be anyway but just in case
+							END IF;							
+						ELSE	-- SCL is low; change state
+							IF COUNT = 0 THEN	-- end of packet; send stop bit
+								I2C_STATE <= SEND_STOP;
+								SDA_INT <= '0';	-- sda needs to be low for stop bit
+							ELSE
+								SDA_INT <= TX_BUFF(COUNT-1); -- output the next bit
+								COUNT <= COUNT-1;
+								I2C_STATE <= SEND_BITS;	-- go back to sending bits
+							END IF;
+						END IF;
+					
+					WHEN PRE_STOP =>
+						IF SCL_INT = '0' THEN
+							SDA_INT <= '0';	-- prepare for the stop condition
+							I2C_STATE <= SEND_STOP;
+						END IF;
+					
+					WHEN SEND_STOP =>
+						IF SCL_INT = '1' THEN
+							SDA_INT <= '1';	-- SCL is high; SDA going high will create the stop bit
+							I2C_STATE <= IDLE;
+						END IF;
+						
+				END CASE;
+			END IF;	-- end rising clock
+			
+			-- SCL will transition on falling edges of I2C_CLK
+			IF FALLING_EDGE(I2C_CLK) THEN
+				IF I2C_STATE /= IDLE AND I2C_STATE /= SEND_START THEN
+					SCL_INT <= NOT SCL;	-- toggle SCL, testing the actual pin.  This allows clock stretching.
+				ELSE
+					SCL_INT <= '1';	-- idle
+				END IF;
+			END IF; -- end falling clock
+			
+		END IF;	-- end resetn.
+	END PROCESS;
+END a;
+

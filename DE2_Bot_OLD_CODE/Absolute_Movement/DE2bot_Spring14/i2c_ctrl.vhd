@@ -1,0 +1,221 @@
+-- Controller for the I2C master.
+-- This is mostly a state machine used to control
+-- the various muxes and registers used for the I2C
+-- device.
+-- Author: Kevin Johnson.  Last modified: 11 Oct 2013
+
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.std_logic_unsigned.all;
+
+entity i2c_ctrl is
+
+	port(
+		resetn          : in  std_logic;
+		ctrl_clk        : in  std_logic;
+		start           : in  std_logic;
+		cmd             : in  std_logic_vector(7 downto 0);
+		sda_in          : in  std_logic;
+		scl_in          : in  std_logic;
+		sda_sel         : out std_logic_vector(1 downto 0);
+		outbyte_sel     : out std_logic_vector(1 downto 0);
+		latch_outdata   : out std_logic_vector(1 downto 0);
+		scl_en          : out std_logic;
+		load_shiftreg   : out std_logic;
+		rnw             : out std_logic;
+		busy            : out std_logic;
+		error           : out std_logic
+	);
+	
+end entity;
+
+architecture main of i2c_ctrl is
+
+	-- Build an enumerated type for the state machine
+	type state_type is (idle, S1, S2, send_address, get_ack, Rs1, Rs2,
+		get_data, send_ack, send_nack, send_data, P1);
+	
+	-- Register used to hold the current state
+	signal state   : state_type;
+	
+	signal go : std_logic; -- flag that we are ready to begin
+	signal running : std_logic; -- flag that we are running
+	signal rnw_int : std_logic; -- internal version of the rnw bit
+	signal byte_counter : std_logic_vector(3 downto 0); -- used to keep track of which byte we're on
+	signal bit_counter : std_logic_vector(4 downto 0); -- used to keep track of which bit we're on
+
+begin
+	-- This process handles the START signal.
+	-- It is basically a DFF that gets set by START, and reset
+	-- by a signal from the other state machine.  The other
+	-- state machine checks this to determine if it should start,
+	-- and reset this once it has started.
+	handle_cs : process (start, running, resetn)
+	begin
+		if (resetn = '0') OR (running = '1') then
+			go <= '0';
+		elsif rising_edge(start) then
+			go <= '1';
+		end if;
+	end process;
+	
+	
+	-- The main state machine
+	state_machine : process (ctrl_clk, resetn)
+	begin
+		if resetn = '0' then
+			state <= idle;
+			scl_en <= '0';
+			byte_counter <= "0000";
+			bit_counter <= "00000";
+			running <= '0';
+			load_shiftreg <= '0';
+			rnw_int <= '0';
+			latch_outdata <= "00";
+
+		elsif (rising_edge(ctrl_clk)) then
+			case state is
+			
+				when idle =>
+					if go = '1' then -- this is the signal to start
+						state <= S1;
+						running <= '1';
+						error <= '0';
+						load_shiftreg <= '1';
+					else
+						state <= idle;
+					end if;
+					byte_counter <= "0000";
+				
+				when S1 => -- begin the start condition
+					if cmd(5 downto 4) /= "00" then
+						rnw_int <= '0'; -- writing
+					else
+						rnw_int <= '1'; -- reading
+					end if;
+					scl_en <= '1';
+					state <= S2;
+					
+				when S2 => -- continue the start condition
+					load_shiftreg <='0';
+					state <= send_address;
+					bit_counter <= "01111";
+					
+				when send_address => -- shift out the address
+					if bit_counter = "00000" then
+						state <= get_ack;
+						load_shiftreg <= '1';
+						if rnw_int = '0' then
+							byte_counter <= cmd(7 downto 4);
+						else
+							byte_counter <= cmd(3 downto 0);
+						end if;
+					else
+						bit_counter <= bit_counter - 1;
+					end if;
+					
+				when get_ack => -- read the ack
+					if scl_in = '1' then
+						if sda_in = '1' then
+							state <= P1; -- NACK; go to P regardless.
+							scl_en <= '0';
+							error <= '1';
+						elsif byte_counter = "0000" then -- no more bytes
+							if cmd(1 downto 0) = "00" then
+								state <= P1; -- no read to do.
+								scl_en <= '0';
+							else
+								state <= Rs1; -- repeated start between write and read
+								scl_en <= '0';
+							end if;
+						else -- still have bytes
+							if rnw_int = '0' then -- writing
+								state <= send_data;
+							else -- reading
+								state <= get_data;
+							end if;
+							bit_counter <= "01111";
+						end if;
+						load_shiftreg <= '0';
+						latch_outdata <= "00";
+					end if;
+					
+				when send_data => -- shift out the data
+					if bit_counter = "00000" then
+						byte_counter <= byte_counter - 1;
+						state <= get_ack;
+						load_shiftreg <= '1';
+					else
+						bit_counter <= bit_counter - 1;
+					end if;
+				
+				when get_data => -- shift in the data
+					if bit_counter = "00000" then
+						if byte_counter /= "0001" then
+							state <= send_ack; -- there will be more
+						else
+							state <= send_nack; --  this is the end
+						end if;
+						byte_counter <= byte_counter - 1;
+						latch_outdata <= byte_counter(1 downto 0);
+					else
+						bit_counter <= bit_counter - 1;
+					end if;
+				
+				when P1 => -- begin stop condition
+					if scl_in = '1' then
+						state <= idle;
+						running <= '0';
+					end if;
+
+				when Rs1 => -- begin restart condition
+					state <= Rs2;
+					load_shiftreg <= '1';
+					rnw_int <= '1';
+					
+				when Rs2 => -- continue restart condition
+					state <= S2;
+					scl_en <= '1';
+					
+				when send_ack => -- drive SDA low for ack
+					-- must still be reading
+					if scl_in = '1' then
+						state <= get_data;
+						bit_counter <= "01111";
+					end if;
+					
+				when send_nack => -- release SDA for nack
+					if scl_in = '1' then
+						scl_en <= '0';
+						state <= P1; -- obviously done reading if we're here
+					end if;
+					
+				when others =>
+					
+			end case;
+		end if;
+	end process;
+
+
+	-- Outputs:
+	
+	outbyte_sel <= byte_counter(1 downto 0);
+	busy <= running OR go;
+	rnw <= rnw_int;
+	
+	with state select sda_sel <=
+		"00" when idle,
+		"00" when S1,
+		"10" when S2,
+		"00" when Rs1,
+		"00" when Rs2,
+		"01" when send_address,
+		"00" when get_ack,
+		"00" when get_data,
+		"10" when send_ack,
+		"00" when send_nack,
+		"01" when send_data,
+		"10" when P1,
+		"00" when others;
+			
+end main;

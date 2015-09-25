@@ -1,0 +1,78 @@
+
+State Machine - |DE2bot|ONESHOT_I2C:inst44|I2C_STATE
+Name I2C_STATE.PRE_STOP I2C_STATE.GET_ACK I2C_STATE.SEND_START I2C_STATE.SEND_STOP I2C_STATE.SEND_BITS I2C_STATE.IDLE 
+I2C_STATE.IDLE 0 0 0 0 0 0 
+I2C_STATE.SEND_BITS 0 0 0 0 1 1 
+I2C_STATE.SEND_STOP 0 0 0 1 0 1 
+I2C_STATE.SEND_START 0 0 1 0 0 1 
+I2C_STATE.GET_ACK 0 1 0 0 0 1 
+I2C_STATE.PRE_STOP 1 0 0 0 0 1 
+
+State Machine - |DE2bot|I2C_INTERFACE:inst43|I2C_master:inst|i2c_ctrl:inst2|state
+Name state.P1 state.send_data state.send_nack state.send_ack state.get_data state.Rs2 state.Rs1 state.get_ack state.send_address state.S2 state.S1 state.idle 
+state.idle 0 0 0 0 0 0 0 0 0 0 0 0 
+state.S1 0 0 0 0 0 0 0 0 0 0 1 1 
+state.S2 0 0 0 0 0 0 0 0 0 1 0 1 
+state.send_address 0 0 0 0 0 0 0 0 1 0 0 1 
+state.get_ack 0 0 0 0 0 0 0 1 0 0 0 1 
+state.Rs1 0 0 0 0 0 0 1 0 0 0 0 1 
+state.Rs2 0 0 0 0 0 1 0 0 0 0 0 1 
+state.get_data 0 0 0 0 1 0 0 0 0 0 0 1 
+state.send_ack 0 0 0 1 0 0 0 0 0 0 0 1 
+state.send_nack 0 0 1 0 0 0 0 0 0 0 0 1 
+state.send_data 0 1 0 0 0 0 0 0 0 0 0 1 
+state.P1 1 0 0 0 0 0 0 0 0 0 0 1 
+
+State Machine - |DE2bot|UART_INTERFACE:inst1|UART:inst2|uart_rx_state
+Name uart_rx_state.rx_get_stop_bit uart_rx_state.rx_get_data uart_rx_state.rx_get_start_bit uart_rx_state.rx_wait_start_synchronise 
+uart_rx_state.rx_wait_start_synchronise 0 0 0 0 
+uart_rx_state.rx_get_start_bit 0 0 1 1 
+uart_rx_state.rx_get_data 0 1 0 1 
+uart_rx_state.rx_get_stop_bit 1 0 0 1 
+
+State Machine - |DE2bot|UART_INTERFACE:inst1|UART:inst2|uart_tx_state
+Name uart_tx_state.send_stop_bit uart_tx_state.transmit_data uart_tx_state.send_start_bit uart_tx_state.wait_for_tick uart_tx_state.idle 
+uart_tx_state.idle 0 0 0 0 0 
+uart_tx_state.wait_for_tick 0 0 0 1 1 
+uart_tx_state.send_start_bit 0 0 1 0 1 
+uart_tx_state.transmit_data 0 1 0 0 1 
+uart_tx_state.send_stop_bit 1 0 0 0 1 
+
+State Machine - |DE2bot|SCOMP:inst18|STATE
+Name STATE.EX_USTB STATE.EX_MULT STATE.EX_OUT2 STATE.EX_OUT STATE.EX_IN STATE.EX_RETURN STATE.EX_CALL STATE.EX_ISTORE STATE.EX_ILOAD STATE.EX_ADDI STATE.EX_SHIFT STATE.EX_XOR STATE.EX_OR STATE.EX_AND STATE.EX_JZERO STATE.EX_JPOS STATE.EX_JNEG STATE.EX_JUMP STATE.EX_SUB STATE.EX_ADD STATE.EX_STORE2 STATE.EX_STORE STATE.EX_LOAD STATE.DECODE STATE.FETCH STATE.RESET_PC 
+STATE.RESET_PC 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+STATE.FETCH 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 
+STATE.DECODE 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 1 
+STATE.EX_LOAD 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 1 
+STATE.EX_STORE 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 1 
+STATE.EX_STORE2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 1 
+STATE.EX_ADD 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 1 
+STATE.EX_SUB 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 1 
+STATE.EX_JUMP 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 1 
+STATE.EX_JNEG 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 1 
+STATE.EX_JPOS 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 1 
+STATE.EX_JZERO 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 1 
+STATE.EX_AND 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 1 
+STATE.EX_OR 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 1 
+STATE.EX_XOR 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 
+STATE.EX_SHIFT 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 
+STATE.EX_ADDI 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 
+STATE.EX_ILOAD 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 
+STATE.EX_ISTORE 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 
+STATE.EX_CALL 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 
+STATE.EX_RETURN 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 
+STATE.EX_IN 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 
+STATE.EX_OUT 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 
+STATE.EX_OUT2 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 
+STATE.EX_MULT 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 
+STATE.EX_USTB 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 
+
+State Machine - |DE2bot|SLCD:inst55|state
+Name state.SWRITE_CLOCK state.SWRITE state.CURPOS_CLOCK state.CURPOS state.INIT_CLOCK state.INIT state.RESET 
+state.RESET 0 0 0 0 0 0 0 
+state.INIT 0 0 0 0 0 1 1 
+state.INIT_CLOCK 0 0 0 0 1 0 1 
+state.CURPOS 0 0 0 1 0 0 1 
+state.CURPOS_CLOCK 0 0 1 0 0 0 1 
+state.SWRITE 0 1 0 0 0 0 1 
+state.SWRITE_CLOCK 1 0 0 0 0 0 1 

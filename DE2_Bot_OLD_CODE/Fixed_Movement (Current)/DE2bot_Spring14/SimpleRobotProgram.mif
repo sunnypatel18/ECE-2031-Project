@@ -1,0 +1,452 @@
+-- Altera Memory Initialization File (MIF)
+
+DEPTH = 1024;
+WIDTH = 16;
+
+ADDRESS_RADIX = HEX;
+DATA_RADIX = HEX;
+
+CONTENT
+  BEGIN
+    [000..3FF] : 0000;  -- Default to NOP
+
+           000 : 0593;  -- 	LOAD    Zero
+           001 : 4C83;  -- 	OUT     LVELCMD     ; Stop motors
+           002 : 4C8B;  -- 	OUT     RVELCMD
+           003 : 4CB2;  -- 	OUT     SONAREN     ; Disable sonar (optional)
+           004 : 4043;  -- 	CALL    SetupI2C    ; Configure the I2C
+           005 : 402C;  -- 	CALL    BattCheck   ; Get battery voltage (and end if too low).
+           006 : 4C05;  -- 	OUT     SSEG2       ; Display batt voltage on SS
+           007 : 0593;  -- 	LOAD    Zero
+           008 : 3417;  -- 	ADDI    &H17        ; arbitrary reminder to toggle SW17
+           009 : 4C04;  -- 	OUT     SSEG1
+           00A : 4803;  -- 	IN      XIO         ; contains KEYs and SAFETY
+           00B : 25AF;  -- 	AND     StartMask   ; mask with 0x10100 : KEY3 and SAFETY
+           00C : 2DAB;  -- 	XOR     Mask4       ; KEY3 is active low; invert SAFETY to match
+           00D : 1C0A;  -- 	JPOS    WaitForUser ; one of those is not ready, so try again 
+           00E : 4CC3;  -- 	OUT     RESETODO    ; reset odometry in case wheels moved after programming
+           00F : 4172;  -- 	CALL	FORGETME	; Reset data associated with bot and base station
+           010 : 4059;  -- 	CALL	ImAlive		; Let base station know I exist
+           011 : 4066;  -- 	CALL	REPDUTY		; Let it know that I'm ready for duty
+           012 : 0593;  -- 	LOAD	Zero
+           013 : 4CC3;  -- 	OUT     RESETODO
+           014 : 4079;  -- 	CALL	REQJOB		; Get Job #N and do it
+           015 : 0587;  -- 	LOAD	N
+           016 : 1194;  -- 	SUB		One			; Decrement N
+           017 : 0987;  -- 	STORE	N			; Store new N
+           018 : 1C14;  -- 	JPOS	DoJob		; Do all jobs until 0
+           019 : 414D;  -- 	CALL	GOHOME		; After all jobs, go home
+           01A : 4072;  -- 	CALL	CLKOUT		; Clock out of base station
+           01B : 140A;  -- 	JUMP	WaitForUser
+           01C : 4C02;  -- 	OUT     TIMER
+           01D : 4802;  -- 	IN      TIMER
+           01E : 4C01;  -- 	OUT     LEDS
+           01F : 37F6;  -- 	ADDI    -10
+           020 : 181D;  -- 	JNEG    Wloop
+           021 : 4400;  -- 	RETURN
+           022 : 4C02;  -- 	OUT     TIMER
+           023 : 0595;  -- 	LOAD	Two			; 360*2 Hz
+           024 : 4C0A;  -- 	OUT		BEEP
+           025 : 4802;  -- 	IN      TIMER
+           026 : 4C01;  -- 	OUT     LEDS
+           027 : 37E2;  -- 	ADDI    -30
+           028 : 1823;  -- 	JNEG    Wloop2
+           029 : 0593;  -- 	LOAD	Zero
+           02A : 4C0A;  -- 	OUT		BEEP
+           02B : 4400;  -- 	RETURN
+           02C : 404A;  -- 	CALL    GetBattLvl 
+           02D : 11B4;  -- 	SUB     MinBatt
+           02E : 1831;  -- 	JNEG    DeadBatt
+           02F : 0DB4;  -- 	ADD     MinBatt     ; get original value back
+           030 : 4400;  -- 	RETURN
+           031 : 0597;  -- 	LOAD    Four
+           032 : 4C0A;  -- 	OUT     BEEP        ; start beep sound
+           033 : 404A;  -- 	CALL    GetBattLvl  ; get the battery level
+           034 : 4C04;  -- 	OUT     SSEG1       ; display it everywhere
+           035 : 4C05;  -- 	OUT     SSEG2
+           036 : 4C06;  -- 	OUT     LCD
+           037 : 0593;  -- 	LOAD    Zero
+           038 : 37FF;  -- 	ADDI    -1          ; 0xFFFF
+           039 : 4C01;  -- 	OUT     LEDS        ; all LEDs on
+           03A : 4C07;  -- 	OUT     GLEDS
+           03B : 401C;  -- 	CALL    Wait1       ; 1 second
+           03C : 0593;  -- 	Load    Zero
+           03D : 4C0A;  -- 	OUT     BEEP        ; stop beeping
+           03E : 0593;  -- 	LOAD    Zero
+           03F : 4C01;  -- 	OUT     LEDS        ; LEDs off
+           040 : 4C07;  -- 	OUT     GLEDS
+           041 : 401C;  -- 	CALL    Wait1       ; 1 second
+           042 : 1431;  -- 	JUMP    DeadBatt    ; repeat forever
+           043 : 05B5;  -- 	LOAD    I2CWCmd     ; 0x1190 (write 1B, read 1B, addr 0x90)
+           044 : 4C90;  -- 	OUT     I2C_CMD     ; to I2C_CMD register
+           045 : 0593;  -- 	LOAD    Zero        ; 0x0000 (A/D port 0, no increment)
+           046 : 4C91;  -- 	OUT     I2C_DATA    ; to I2C_DATA register
+           047 : 4C92;  -- 	OUT     I2C_RDY     ; start the communication
+           048 : 4050;  -- 	CALL    BlockI2C    ; wait for it to finish
+           049 : 4400;  -- 	RETURN
+           04A : 05B6;  -- 	LOAD    I2CRCmd     ; 0x0190 (write 0B, read 1B, addr 0x90)
+           04B : 4C90;  -- 	OUT     I2C_CMD     ; to I2C_CMD
+           04C : 4C92;  -- 	OUT     I2C_RDY     ; start the communication
+           04D : 4050;  -- 	CALL    BlockI2C    ; wait for it to finish
+           04E : 4891;  -- 	IN      I2C_DATA    ; get the returned data
+           04F : 4400;  -- 	RETURN
+           050 : 4892;  -- 	IN      I2C_RDY;   ; Read busy signal
+           051 : 1C50;  -- 	JPOS    BlockI2C    ; If not 0, try again
+           052 : 4400;  -- 	RETURN              ; Else return
+           053 : 0593;  -- 	LOAD    Zero
+           054 : 4C83;  -- 	OUT     LVELCMD
+           055 : 4C8B;  -- 	OUT     RVELCMD
+           056 : 0578;  -- 	LOAD	ErrorVal
+           057 : 4C04;  -- 	OUT		SSEG1
+           058 : 1453;  -- 	JUMP 	ErrorNow
+           059 : 0594;  -- 	LOAD	One
+           05A : 4C04;  -- 	OUT		SSEG1
+           05B : 0579;  -- 	LOAD 	TSENDALV    ; Load value to send
+           05C : 4C98;  -- 	OUT 	UART		; Send to UART
+           05D : 416E;  -- 	CALL	INUART0
+           05E : 4167;  -- 	CALL	INUART1		; Receive response from UART
+           05F : 416E;  -- 	CALL	INUART0		; Wait until data is cleared
+           060 : 0595;  -- 	LOAD	Two
+           061 : 4C04;  -- 	OUT		SSEG1
+           062 : 4167;  -- 	CALL	INUART1		; Receive checksum from UART
+           063 : 0595;  -- 	LOAD	Two
+           064 : 4C05;  -- 	OUT		SSEG2
+           065 : 4400;  -- 	RETURN
+           066 : 0596;  -- 	LOAD	Three
+           067 : 4C04;  -- 	OUT		SSEG1
+           068 : 057C;  -- 	LOAD 	SNDDUTY		; Load value to send
+           069 : 4C98;  -- 	OUT 	UART		; Send to UART
+           06A : 416E;  -- 	CALL	INUART0
+           06B : 4167;  -- 	CALL	INUART1		; Receive from UART
+           06C : 097D;  -- 	STORE	RDUTY		; Store response
+           06D : 416E;  -- 	CALL	INUART0		; Wait until data is cleared
+           06E : 0597;  -- 	LOAD	Four
+           06F : 4C04;  -- 	OUT		SSEG1
+           070 : 4167;  -- 	CALL	INUART1		; Receive checksum from UART
+           071 : 4400;  -- 	RETURN
+           072 : 057E;  -- 	LOAD	CLKVAL		; Load value to send
+           073 : 4C98;  -- 	OUT		UART		; Send to UART
+           074 : 4167;  -- 	CALL	INUART1		; Receive data from UART
+           075 : 416E;  -- 	CALL	INUART0		; Wait until data is cleared
+           076 : 4167;  -- 	CALL	INUART1		; Receive checksum from UART
+           077 : 416E;  -- 	CALL	INUART0		; Wait until data is cleared
+           078 : 4400;  -- 	RETURN
+           079 : 0598;  -- 	LOAD	Five
+           07A : 4C04;  -- 	OUT		SSEG1
+           07B : 0587;  -- 	LOAD	N
+           07C : 4C05;  -- 	OUT		SSEG2
+           07D : 057F;  -- 	LOAD	REQVAL		; Load value to send
+           07E : 0D87;  -- 	ADD		N			; Add specific job number
+           07F : 4C98;  -- 	OUT		UART		; Send to UART
+           080 : 416E;  -- 	CALL	INUART0
+           081 : 4167;  -- 	CALL	INUART1		; Receive X1 from UART
+           082 : 0988;  -- 	STORE	X1			; Store X1
+           083 : 416E;  -- 	CALL	INUART0		; Wait until data is cleared
+           084 : 4167;  -- 	CALL	INUART1		; Receive Y1 from UART
+           085 : 0989;  -- 	STORE	Y1			; Store Y1
+           086 : 416E;  -- 	CALL	INUART0		; Wait until data is cleared
+           087 : 4167;  -- 	CALL	INUART1		; Receive X2 from UART
+           088 : 098A;  -- 	STORE	X2			; Store X2
+           089 : 416E;  -- 	CALL	INUART0		; Wait until data is cleared
+           08A : 4167;  -- 	CALL	INUART1		; Receive Y2 from UART
+           08B : 098B;  -- 	STORE 	Y2			; Store Y2
+           08C : 416E;  -- 	CALL	INUART0		; Wait until data is cleared
+           08D : 0599;  -- 	LOAD	Six
+           08E : 4C04;  -- 	OUT		SSEG1
+           08F : 4167;  -- 	CALL	INUART1		; Receive checksum from UART
+           090 : 059A;  -- 	LOAD	Seven
+           091 : 4C04;  -- 	OUT		SSEG1
+           092 : 4CC3;  -- 	OUT		RESETODO
+           093 : 0588;  -- 	LOAD	X1
+           094 : 4C04;  -- 	OUT		SSEG1
+           095 : 118C;  -- 	SUB		CurX
+           096 : 51B3;  -- 	MULT	TwoFeet
+           097 : 0992;  -- 	STORE	Temp
+           098 : 1C9B;  -- 	JPOS	MOVEXF
+           099 : 18A4;  -- 	JNEG	MOVEXR
+           09A : 20AC;  -- 	JZERO	PICKX
+           09B : 412E;  -- 	CALL	Straighten
+           09C : 05A0;  -- 	LOAD	FMedium
+           09D : 4C83;  -- 	OUT		LVELCMD
+           09E : 0D91;  -- 	ADD		TurnConst
+           09F : 4C8B;  -- 	OUT		RVELCMD
+           0A0 : 48C0;  -- 	IN		XPOS
+           0A1 : 1192;  -- 	SUB		Temp
+           0A2 : 189B;  -- 	JNEG	MOVEXF
+           0A3 : 14AC;  -- 	JUMP	PICKX
+           0A4 : 05A1;  -- 	LOAD	RMedium
+           0A5 : 4C83;  -- 	OUT		LVELCMD
+           0A6 : 1191;  -- 	SUB		TurnConst
+           0A7 : 4C8B;  -- 	OUT		RVELCMD
+           0A8 : 48C0;  -- 	IN		XPOS
+           0A9 : 0D92;  -- 	ADD		Temp
+           0AA : 18A4;  -- 	JNEG	MOVEXR
+           0AB : 14AC;  -- 	JUMP	PICKX
+           0AC : 0593;  -- 	LOAD	ZERO
+           0AD : 4118;  -- 	CALL	STOP		; Stop the bot
+           0AE : 0588;  -- 	LOAD	X1			; Update X value
+           0AF : 098C;  -- 	STORE	CurX		; Store new X value
+           0B0 : 411C;  -- 	CALL	Rotate90	; Rotate 90 anticlockwise
+           0B1 : 4118;  -- 	CALL	STOP		; Stop the bot
+           0B2 : 059B;  -- 	LOAD	Eight
+           0B3 : 4C04;  -- 	OUT		SSEG1
+           0B4 : 4CC3;  -- 	OUT		RESETODO
+           0B5 : 0589;  -- 	LOAD	Y1
+           0B6 : 4C04;  -- 	OUT		SSEG1
+           0B7 : 118D;  -- 	SUB		CurY
+           0B8 : 51B3;  -- 	MULT	TwoFeet
+           0B9 : 0992;  -- 	STORE	Temp
+           0BA : 1CBD;  -- 	JPOS	MOVEYF
+           0BB : 18C5;  -- 	JNEG	MOVEYR
+           0BC : 20CD;  -- 	JZERO	PICKY
+           0BD : 05A0;  -- 	LOAD	FMedium
+           0BE : 4C83;  -- 	OUT		LVELCMD
+           0BF : 0D91;  -- 	ADD		TurnConst
+           0C0 : 4C8B;  -- 	OUT		RVELCMD
+           0C1 : 48C0;  -- 	IN		XPOS
+           0C2 : 1192;  -- 	SUB		Temp
+           0C3 : 18BD;  -- 	JNEG	MOVEYF
+           0C4 : 14CD;  -- 	JUMP	PICKY
+           0C5 : 05A1;  -- 	LOAD	RMedium
+           0C6 : 4C83;  -- 	OUT		LVELCMD
+           0C7 : 1191;  -- 	SUB		TurnConst
+           0C8 : 4C8B;  -- 	OUT		RVELCMD
+           0C9 : 48C0;  -- 	IN		XPOS
+           0CA : 0D92;  -- 	ADD		Temp
+           0CB : 18C5;  -- 	JNEG	MOVEYR
+           0CC : 14CD;  -- 	JUMP	PICKY
+           0CD : 0593;  -- 	LOAD	ZERO
+           0CE : 4118;  -- 	CALL	STOP		; Stop the bot
+           0CF : 0589;  -- 	LOAD	Y1			; Update Y value
+           0D0 : 098D;  -- 	STORE	CurY		; Store new Y value
+           0D1 : 4C05;  -- 	OUT		SSEG2
+           0D2 : 4118;  -- 	CALL	STOP		; Stop the bot
+           0D3 : 413C;  -- 	CALL	PICKUP		; Tell base station, job has been picked up
+           0D4 : 059C;  -- 	LOAD	Nine
+           0D5 : 4C04;  -- 	OUT		SSEG1
+           0D6 : 4CC3;  -- 	OUT		RESETODO
+           0D7 : 058B;  -- 	LOAD	Y2
+           0D8 : 4C04;  -- 	OUT		SSEG1
+           0D9 : 118D;  -- 	SUB		CurY
+           0DA : 51B3;  -- 	MULT	TwoFeet
+           0DB : 0992;  -- 	STORE	Temp
+           0DC : 1CDF;  -- 	JPOS	MOVEYF2
+           0DD : 18E7;  -- 	JNEG	MOVEYR2
+           0DE : 20EF;  -- 	JZERO	DROPY
+           0DF : 05A0;  -- 	LOAD	FMedium
+           0E0 : 4C83;  -- 	OUT		LVELCMD
+           0E1 : 0D91;  -- 	ADD		TurnConst
+           0E2 : 4C8B;  -- 	OUT		RVELCMD
+           0E3 : 48C0;  -- 	IN		XPOS
+           0E4 : 1192;  -- 	SUB		Temp
+           0E5 : 18DF;  -- 	JNEG	MOVEYF2
+           0E6 : 14EF;  -- 	JUMP	DROPY
+           0E7 : 05A1;  -- 	LOAD	RMedium
+           0E8 : 4C83;  -- 	OUT		LVELCMD
+           0E9 : 1191;  -- 	SUB		TurnConst
+           0EA : 4C8B;  -- 	OUT		RVELCMD
+           0EB : 48C0;  -- 	IN		XPOS
+           0EC : 0D92;  -- 	ADD		Temp
+           0ED : 18E7;  -- 	JNEG	MOVEYR2
+           0EE : 14EF;  -- 	JUMP	DROPY
+           0EF : 0593;  -- 	LOAD	ZERO
+           0F0 : 4118;  -- 	CALL	STOP		; Stop the bot
+           0F1 : 058B;  -- 	LOAD	Y2			; Update Y value
+           0F2 : 098D;  -- 	STORE	CurY		; Store new Y value
+           0F3 : 4126;  -- 	CALL	Rotate270	; Rotate 270 anticlockwise
+           0F4 : 4118;  -- 	CALL	STOP		; Stop the bot
+           0F5 : 059D;  -- 	LOAD	Ten
+           0F6 : 4C04;  -- 	OUT		SSEG1
+           0F7 : 4CC3;  -- 	OUT		RESETODO
+           0F8 : 0594;  -- 	LOAD	One
+           0F9 : 4C04;  -- 	OUT		SSEG1
+           0FA : 118C;  -- 	SUB		CurX
+           0FB : 51B3;  -- 	MULT	TwoFeet
+           0FC : 0992;  -- 	STORE	Temp
+           0FD : 1D00;  -- 	JPOS	MOVEXF2
+           0FE : 1908;  -- 	JNEG	MOVEXR2
+           0FF : 2110;  -- 	JZERO	DROPX
+           100 : 05A0;  -- 	LOAD	FMedium
+           101 : 4C83;  -- 	OUT		LVELCMD
+           102 : 0D91;  -- 	ADD		TurnConst
+           103 : 4C8B;  -- 	OUT		RVELCMD
+           104 : 48C0;  -- 	IN		XPOS
+           105 : 1192;  -- 	SUB		Temp
+           106 : 1900;  -- 	JNEG	MOVEXF2
+           107 : 1510;  -- 	JUMP	DROPX
+           108 : 05A1;  -- 	LOAD	RMedium
+           109 : 4C83;  -- 	OUT		LVELCMD
+           10A : 1191;  -- 	SUB		TurnConst
+           10B : 4C8B;  -- 	OUT		RVELCMD
+           10C : 48C0;  -- 	IN		XPOS
+           10D : 0D92;  -- 	ADD		Temp
+           10E : 1908;  -- 	JNEG	MOVEXR2
+           10F : 1510;  -- 	JUMP	DROPX
+           110 : 0593;  -- 	LOAD	ZERO
+           111 : 4118;  -- 	CALL	STOP		; Stop the bot
+           112 : 0594;  -- 	LOAD	One			; Update X value
+           113 : 098C;  -- 	STORE	CurX		; Store new X value
+           114 : 411C;  -- 	CALL	Rotate90	; Rotate 90 anticlockwise
+           115 : 4118;  -- 	CALL	STOP		; Stop the bot
+           116 : 4145;  -- 	CALL	DROPOFF		; Tell base station, job has been dropped off
+           117 : 4400;  -- 	RETURN
+           118 : 0593;  -- 	LOAD	Zero
+           119 : 4C83;  -- 	OUT		LVELCMD
+           11A : 4C8B;  -- 	OUT		RVELCMD
+           11B : 4400;  -- 	RETURN
+           11C : 059F;  -- 	LOAD	RSlow
+           11D : 4C83;  -- 	OUT		LVELCMD
+           11E : 059E;  -- 	LOAD	FSlow
+           11F : 4C8B;  -- 	OUT		RVELCMD
+           120 : 48C2;  -- 	IN		THETA
+           121 : 4C04;  -- 	OUT		SSEG1
+           122 : 11A5;  -- 	SUB		Deg90
+           123 : 4C05;  -- 	OUT		SSEG2
+           124 : 191C;  -- 	JNEG 	Rotate90
+           125 : 4400;  -- 	RETURN
+           126 : 059F;  -- 	LOAD	RSlow
+           127 : 4C83;  -- 	OUT		LVELCMD
+           128 : 059E;  -- 	LOAD	FSlow
+           129 : 4C8B;  -- 	OUT		RVELCMD
+           12A : 48C2;  -- 	IN		THETA
+           12B : 11A6;  -- 	SUB		Deg270
+           12C : 1926;  -- 	JNEG 	Rotate270
+           12D : 4400;  -- 	RETURN
+           12E : 48C2;  -- 	IN		THETA
+           12F : 1932;  -- 	JNEG 	StraightL
+           130 : 1D37;  -- 	JPOS	StraightR
+           131 : 4400;  -- 	RETURN
+           132 : 059F;  -- 	LOAD	RSlow
+           133 : 4C83;  -- 	OUT		LVELCMD
+           134 : 059E;  -- 	LOAD	FSlow
+           135 : 4C8B;  -- 	OUT		RVELCMD
+           136 : 4400;  -- 	RETURN
+           137 : 059F;  -- 	LOAD	RSlow
+           138 : 4C8B;  -- 	OUT		RVELCMD
+           139 : 059E;  -- 	LOAD	FSlow
+           13A : 4C83;  -- 	OUT		LVELCMD
+           13B : 4400;  -- 	RETURN
+           13C : 0583;  -- 	LOAD	PICKVAL		; Load value to send
+           13D : 0D87;  -- 	ADD		N			; Add specific job number
+           13E : 4C98;  -- 	OUT		UART		; Send to UART
+           13F : 416E;  -- 	CALL	INUART0
+           140 : 4167;  -- 	CALL	INUART1		; Receive response from UART
+           141 : 416E;  -- 	CALL	INUART0		; Wait until data is cleared
+           142 : 4167;  -- 	CALL	INUART1		; Receive checksum from UART
+           143 : 4022;  -- 	CALL	BeepWait3	; Wait and beep for 3 seconds
+           144 : 4400;  -- 	RETURN
+           145 : 0584;  -- 	LOAD	DROPVAL		; Load value to send
+           146 : 4C98;  -- 	OUT		UART		; Send to UART
+           147 : 416E;  -- 	CALL	INUART0
+           148 : 4167;  -- 	CALL	INUART1		; Receive response from UART
+           149 : 416E;  -- 	CALL	INUART0		; Wait until data is cleared
+           14A : 4167;  -- 	CALL	INUART1		; Receive checksum from UART
+           14B : 4022;  -- 	CALL	BeepWait3	; Wait and beep for 3 seconds
+           14C : 4400;  -- 	RETURN
+           14D : 05A3;  -- 	LOAD	RFast
+           14E : 4C83;  -- 	OUT		LVELCMD
+           14F : 4C8B;  -- 	OUT		RVELCMD
+           150 : 058C;  -- 	LOAD	CurX
+           151 : 1194;  -- 	SUB		One
+           152 : 2155;  -- 	JZERO	HOMEX
+           153 : 48C0;  -- 	IN		XPOS
+           154 : 1D4D;  -- 	JPOS	HOMEMOVEX
+           155 : 4118;  -- 	CALL	STOP		; Stop the bot
+           156 : 0594;  -- 	LOAD	One			; Update X value
+           157 : 098C;  -- 	STORE	CurX		; Store new X value
+           158 : 411C;  -- 	CALL	Rotate90	; Rotate 90 anticlockwise
+           159 : 4118;  -- 	CALL	STOP		; Stop the bot
+           15A : 05A3;  -- 	LOAD	RFast
+           15B : 4C83;  -- 	OUT		LVELCMD
+           15C : 4C8B;  -- 	OUT		RVELCMD
+           15D : 058D;  -- 	LOAD	CurY
+           15E : 1194;  -- 	SUB		One
+           15F : 2162;  -- 	JZERO	HOMEY
+           160 : 48C1;  -- 	IN		YPOS
+           161 : 1D4D;  -- 	JPOS	HOMEMOVEX
+           162 : 4118;  -- 	CALL	STOP		; Stop the bot
+           163 : 0589;  -- 	LOAD	Y1			; Update Y value
+           164 : 098D;  -- 	STORE	CurY		; Store new Y value
+           165 : 4118;  -- 	CALL	STOP		; Stop the bot
+           166 : 4400;  -- 	RETURN
+           167 : 5400;  -- 	USTB	0
+           168 : 37FF;  -- 	ADDI	-1
+           169 : 1967;  -- 	JNEG	INUART1
+           16A : 1D67;  -- 	JPOS	INUART1
+           16B : 4898;  -- 	IN		UART
+           16C : 2585;  -- 	AND		FIXIN
+           16D : 4400;  -- 	RETURN
+           16E : 5400;  -- 	USTB	0
+           16F : 196E;  -- 	JNEG	INUART0
+           170 : 1D6E;  -- 	JPOS	INUART0
+           171 : 4400;  -- 	RETURN
+           172 : 0586;  -- 	LOAD	FRGTVAL		; Load value to send
+           173 : 4C98;  -- 	OUT		UART		; Send to UART
+           174 : 4167;  -- 	CALL	INUART1		; Receive data from UART
+           175 : 416E;  -- 	CALL	INUART0		; Wait until data is cleared
+           176 : 4167;  -- 	CALL	INUART1		; Receive checksum from UART
+           177 : 4400;  -- 	RETURN	
+           178 : 00FF;  -- ErrorVal:	DW	&HFF
+           179 : 000B;  -- TSENDALV:   DW &H0B
+           17A : 000F;  -- TESTN:	  	DW &H0F
+           17B : 0000;  -- TESTALV:  	DW 0
+           17C : 0010;  -- SNDDUTY:	DW &H10		; CHANGE TO &H10 FOR ACTUAL JOBS --- TEST JOBS RANGE FROM 80 to 84
+           17D : 0000;  -- RDUTY:		DW 0
+           17E : 0060;  -- CLKVAL:		DW &H60
+           17F : 0020;  -- REQVAL:		DW &H20
+           180 : 0000;  -- CXPOS:		DW 0
+           181 : 0000;  -- CYPOS:		DW 0
+           182 : 0000;  -- DYPOS:		DW 0
+           183 : 0030;  -- PICKVAL:	DW &H30
+           184 : 0040;  -- DROPVAL:	DW &H40
+           185 : 00FF;  -- FIXIN:		DW &HFF
+           186 : 0090;  -- FRGTVAL:	DW &H90
+           187 : 0008;  -- N:		  DW 8
+           188 : 0001;  -- X1:		  DW 1
+           189 : 0001;  -- Y1:		  DW 1
+           18A : 0001;  -- X2:		  DW 1
+           18B : 0001;  -- Y2:		  DW 1
+           18C : 0001;  -- CurX:	  DW 1
+           18D : 0001;  -- CurY:	  DW 1
+           18E : 0000;  -- MovX:	  DW 0
+           18F : 0000;  -- MovY:	  DW 0
+           190 : 0000;  -- DirSpeed: DW 0
+           191 : 000B;  -- TurnConst: DW 11
+           192 : 0000;  -- Temp:     DW 0 ; "Temp" is not a great name, but can be helpful
+           193 : 0000;  -- Zero:     DW 0
+           194 : 0001;  -- One:      DW 1
+           195 : 0002;  -- Two:      DW 2
+           196 : 0003;  -- Three:    DW 3
+           197 : 0004;  -- Four:     DW 4
+           198 : 0005;  -- Five:     DW 5
+           199 : 0006;  -- Six:      DW 6
+           19A : 0007;  -- Seven:    DW 7
+           19B : 0008;  -- Eight:    DW 8
+           19C : 0009;  -- Nine:     DW 9
+           19D : 000A;  -- Ten:      DW 10
+           19E : 0064;  -- FSlow:    DW 100       ; 100 is about the lowest value that will move at all
+           19F : FF9C;  -- RSlow:    DW -100
+           1A0 : 00FA;  -- FMedium:  DW 250
+           1A1 : FF06;  -- RMedium:  DW -250
+           1A2 : 01F4;  -- FFast:    DW 500       ; 500 is a fair clip (511 is max)
+           1A3 : FE0C;  -- RFast:    DW -500
+           1A4 : 03E8;  -- Pedro:	  DW 1000
+           1A5 : 0096;  -- Deg90:    DW 150
+           1A6 : 01A4;  -- Deg270:   DW 420
+           1A7 : 0001;  -- Mask0:    DW &B00000001
+           1A8 : 0002;  -- Mask1:    DW &B00000010
+           1A9 : 0004;  -- Mask2:    DW &B00000100
+           1AA : 0008;  -- Mask3:    DW &B00001000
+           1AB : 0010;  -- Mask4:    DW &B00010000
+           1AC : 0020;  -- Mask5:    DW &B00100000
+           1AD : 0040;  -- Mask6:    DW &B01000000
+           1AE : 0080;  -- Mask7:    DW &B10000000
+           1AF : 0014;  -- StartMask: DW &B10100
+           1B0 : 00FF;  -- AllSonar: DW &B11111111
+           1B1 : 01DC;  -- OneMeter: DW 476        ; one meter in 2.1mm units
+           1B2 : 00EE;  -- HalfMeter: DW 238       ; half meter in 2.1mm units
+           1B3 : 010E;  -- TwoFeet:  DW 270        ; ~2ft in 2.1mm units
+           1B4 : 006E;  -- MinBatt:  DW 110        ; 11V - minimum safe battery voltage
+           1B5 : 1190;  -- I2CWCmd:  DW &H1190     ; write one byte, read one byte, addr 0x90
+           1B6 : 0190;  -- I2CRCmd:  DW &H0190     ; write nothing, read one byte, addr 0x90
+  END;

@@ -1,0 +1,16 @@
+Fitter Status : Successful - Sat Apr 19 20:35:30 2014
+Quartus II Version : 9.1 Build 350 03/24/2010 SP 2 SJ Web Edition
+Revision Name : DE2bot
+Top-level Entity Name : DE2bot
+Family : Cyclone II
+Device : EP2C35F672C6
+Timing Models : Final
+Total logic elements : 3,223 / 33,216 ( 10 % )
+    Total combinational functions : 2,934 / 33,216 ( 9 % )
+    Dedicated logic registers : 1,486 / 33,216 ( 4 % )
+Total registers : 1486
+Total pins : 157 / 475 ( 33 % )
+Total virtual pins : 0
+Total memory bits : 90,112 / 483,840 ( 19 % )
+Embedded Multiplier 9-bit elements : 24 / 70 ( 34 % )
+Total PLLs : 2 / 4 ( 50 % )
